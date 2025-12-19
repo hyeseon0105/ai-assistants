@@ -10,13 +10,25 @@ from ..prompts.translate import TRANSLATE_PROMPT
 from ..prompts.analyze import ANALYZE_PROMPT
 
 
-SYSTEM_PROMPT = "\n\n".join(
+# 기본 모드: 일반 질문, 요약/분석 중심
+DEFAULT_SYSTEM_PROMPT = "\n\n".join(
     [
         BASE_PROMPT,
-        TRANSLATE_PROMPT,
         ANALYZE_PROMPT,
     ]
 ).strip()
+
+# 번역 모드: 번역 품질 고정을 위해 번역 전용 규칙만 포함
+TRANSLATE_SYSTEM_PROMPT = "\n\n".join(
+    [
+        BASE_PROMPT,
+        TRANSLATE_PROMPT,
+    ]
+).strip()
+
+
+# 하위 호환성을 위해 기본 프롬프트를 SYSTEM_PROMPT로 노출
+SYSTEM_PROMPT = DEFAULT_SYSTEM_PROMPT
 
 
 

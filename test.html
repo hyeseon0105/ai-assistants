@@ -299,7 +299,6 @@
           }
 
           data = await res.json();
-          answerMetaEl.textContent = `파일: ${data.filename || file.name}`;
         } else {
           // 일반 질문 요청
           const questionForAgent = history
