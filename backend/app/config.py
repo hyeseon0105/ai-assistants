@@ -13,6 +13,7 @@ class Settings:
 
     OPENAI_API_KEY: str
     OPENAI_MODEL: str
+    _client: OpenAI | None = None
 
     def __init__(self) -> None:
         api_key = os.getenv("OPENAI_API_KEY")
@@ -24,11 +25,11 @@ class Settings:
         self.OPENAI_API_KEY = api_key
         self.OPENAI_MODEL = model
 
-        # OpenAI 공식 Python 클라이언트
-        self._client = OpenAI(api_key=self.OPENAI_API_KEY)
-
     @property
     def client(self) -> OpenAI:
+        """OpenAI 클라이언트를 지연 초기화하여 반환."""
+        if self._client is None:
+            self._client = OpenAI(api_key=self.OPENAI_API_KEY)
         return self._client
 
 

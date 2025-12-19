@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>웹 검색 기반 AI 에이전트</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 900px;
+      margin: 40px auto;
+      padding: 0 20px 40px;
+      line-height: 1.6;
+    }
+    h1 {
+      font-size: 1.8rem;
+      margin-bottom: 0.5rem;
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 2.1fr) minmax(260px, 1fr);
+      gap: 24px;
+      align-items: flex-start;
+    }
+
+    .card {
+      border: 1px solid #e5e7eb;
+      border-radius: 16px;
+      padding: 16px 20px;
+      box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
+      background: #ffffff;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 70px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid #d1d5db;
+      font-family: inherit;
+      resize: vertical;
+    }
+    button {
+      margin-top: 10px;
+      padding: 8px 16px;
+      border-radius: 999px;
+      border: none;
+      background: #2563eb;
+      color: white;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:disabled {
+      background: #9ca3af;
+      cursor: not-allowed;
+    }
+    .label {
+      font-size: 0.85rem;
+      color: #6b7280;
+      margin-bottom: 4px;
+      display: block;
+    }
+    .output {
+      margin-top: 12px;
+      font-size: 0.95rem;
+      white-space: pre-wrap;
+    }
+    .meta {
+      margin-top: 6px;
+      font-size: 0.8rem;
+      color: #6b7280;
+    }
+    .error {
+      margin-top: 10px;
+      color: #b91c1c;
+      font-size: 0.9rem;
+    }
+    .chat-window {
+      margin-top: 12px;
+      border-radius: 12px;
+      border: 1px solid #e5e7eb;
+      background: #f9fafb;
+      max-height: 520px;
+      overflow-y: auto;
+      padding: 10px 12px;
+    }
+    .chat-message {
+      margin-bottom: 10px;
+      display: flex;
+      gap: 8px;
+    }
+    .chat-message.user {
+      justify-content: flex-end;
+    }
+    .chat-bubble {
+      max-width: 80%;
+      padding: 8px 11px;
+      border-radius: 14px;
+      font-size: 0.93rem;
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+      white-space: pre-wrap;
+    }
+    .chat-message.user .chat-bubble {
+      background: #2563eb;
+      border-color: #2563eb;
+      color: #ffffff;
+    }
+    .chat-meta {
+      font-size: 0.75rem;
+      color: #6b7280;
+      margin-top: 2px;
+    }
+    .label-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .icon-btn {
+      margin-top: 0;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.85rem;
+      background: #111827;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: #f3f4f6;
+      font-size: 0.8rem;
+      color: #4b5563;
+    }
+  </style>
+</head>
+<body>
+  <h1>웹 검색 기반 AI 에이전트</h1>
+  <p style="color:#4b5563; font-size:0.95rem;">
+    백엔드 FastAPI 서버(<code>http://localhost:8000</code>)가 실행 중이어야 합니다.
+  </p>
+
+  <div class="layout">
+    <!-- 왼쪽: 대화 영역 -->
+    <div class="card">
+      <div class="label-row">
+        <label class="label" for="question">대화 / 파일 업로드</label>
+        <button id="fileTriggerBtn" type="button" class="icon-btn">+ 파일</button>
+      </div>
+
+      <!-- 실제 파일 입력은 숨기고, +버튼으로만 열기 -->
+      <input type="file" id="fileInput" accept=".pdf,.txt" style="display:none;" />
+      <div id="fileInfo" class="meta" style="display:none;">
+        <span class="pill" id="fileNamePill"></span>
+      </div>
+
+      <div class="chat-window" id="chatWindow">
+        <!-- 대화 메시지들이 여기에 append 됨 -->
+      </div>
+
+      <div style="margin-top:10px;">
+        <textarea id="question" placeholder="예: 이 제품이 어떤 의료기기인지 알려줘 / 이 문서를 번역해줘 / 이 계약서에서 위험한 조항만 뽑아줘"></textarea>
+        <button id="sendBtn">에이전트에게 질문하기</button>
+      </div>
+
+      <div id="error" class="error" style="display:none;"></div>
+    </div>
+
+    <!-- 오른쪽: 요약/가이드 카드 -->
+    <div class="card">
+      <div style="font-size:0.9rem; color:#f97316; margin-bottom:6px;">🔥 이 에이전트 사용 요약</div>
+      <ul style="padding-left:18px; font-size:0.9rem; color:#374151; margin-top:4px;">
+        <li>일반 질문은 그대로 입력하면 됩니다.</li>
+        <li>브로셔·계약서·매뉴얼은 <strong>+ 파일</strong> 버튼으로 업로드 후 질문을 적어주세요.</li>
+        <li>“번역해줘”라고만 해도 문서 성격을 보고 브로셔 톤으로 번역합니다.</li>
+        <li>위험 조항, 핵심 포인트만 뽑기 등 문서 기반 분석도 가능합니다.</li>
+      </ul>
+      <hr style="margin:12px 0; border:none; border-top:1px solid #e5e7eb;" />
+      <div style="font-size:0.85rem; color:#6b7280;">
+        이 페이지는 테스트용 프론트입니다. 실제 서비스에서는 이 로직을 그대로 가져가
+        사내 포털이나 고객용 웹사이트에 붙이면 됩니다.
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 공통 요소
+    const btn = document.getElementById('sendBtn');
+    const questionEl = document.getElementById('question');
+    const errorEl = document.getElementById('error');
+    const chatWindowEl = document.getElementById('chatWindow');
+
+    // 대화 내역 (프론트에서만 관리, 백엔드 API는 그대로 유지)
+    const conversation = [];
+
+    // 파일 업로드 관련
+    const fileTriggerBtn = document.getElementById('fileTriggerBtn');
+    const fileInput = document.getElementById('fileInput');
+    const fileInfoEl = document.getElementById('fileInfo');
+    const fileNamePillEl = document.getElementById('fileNamePill');
+
+    fileTriggerBtn.addEventListener('click', () => {
+      fileInput.click();
+    });
+
+    fileInput.addEventListener('change', () => {
+      const file = fileInput.files[0];
+      if (file) {
+        fileNamePillEl.textContent = `선택된 파일: ${file.name}`;
+        fileInfoEl.style.display = 'block';
+      } else {
+        fileInfoEl.style.display = 'none';
+        fileNamePillEl.textContent = '';
+      }
+    });
+
+    function appendMessage(role, text, meta) {
+      const wrap = document.createElement('div');
+      wrap.className = `chat-message ${role}`;
+
+      const bubble = document.createElement('div');
+      bubble.className = 'chat-bubble';
+      bubble.textContent = text;
+
+      wrap.appendChild(bubble);
+
+      if (meta) {
+        const metaEl = document.createElement('div');
+        metaEl.className = 'chat-meta';
+        metaEl.textContent = meta;
+        wrap.appendChild(metaEl);
+      }
+
+      chatWindowEl.appendChild(wrap);
+      chatWindowEl.scrollTop = chatWindowEl.scrollHeight;
+    }
+
+    function buildHistoryForPrompt() {
+      if (!conversation.length) return '';
+      return conversation
+        .map(m => `${m.role === 'user' ? '사용자' : 'AI'}: ${m.text}`)
+        .join('\n');
+    }
+
+    // Enter 키: Shift+Enter는 줄바꿈, Enter 단독은 전송
+    // - textarea에 포커스가 있을 때만 동작하도록 document 레벨에서 한 번 더 체크
+    document.addEventListener('keydown', (event) => {
+      const isQuestionFocused = document.activeElement === questionEl;
+      if (!isQuestionFocused) return;
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        btn.click();
+      }
+    });
+
+    // 전송 버튼: 파일이 있으면 /agent/file, 없으면 /agent 호출
+    btn.addEventListener('click', async () => {
+      const q = questionEl.value.trim();
+      const file = fileInput.files[0] || null;
+
+      if (!q && !file) {
+        errorEl.style.display = 'block';
+        errorEl.textContent = '질문을 입력하거나 파일을 업로드해 주세요.';
+        return;
+      }
+
+      errorEl.style.display = 'none';
+
+      btn.disabled = true;
+      btn.textContent = '요청 중...';
+
+      try {
+        let data;
+        let userVisibleQuestion = q || (file ? '이 파일을 요약해줘' : '');
+
+        // 프론트에서 대화 내역을 유지하고, 히스토리를 함께 보낸다.
+        const history = buildHistoryForPrompt();
+
+        if (file) {
+          // 파일 기반 요청: 질문이 비어 있으면 기본값 사용
+          const questionForFile = userVisibleQuestion || '이 파일을 요약해줘';
+          const formData = new FormData();
+          formData.append('file', file);
+
+          const combinedQuestionForFile = history
+            ? `${history}\n\n새 질문: ${questionForFile}`
+            : questionForFile;
+
+          formData.append('question', combinedQuestionForFile);
+
+          const res = await fetch('http://localhost:8000/agent/file', {
+            method: 'POST',
+            body: formData,
+          });
+
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.detail || `HTTP ${res.status}`);
+          }
+
+          data = await res.json();
+          answerMetaEl.textContent = `파일: ${data.filename || file.name}`;
+        } else {
+          // 일반 질문 요청
+          const questionForAgent = history
+            ? `${history}\n\n새 질문: ${q}`
+            : q;
+
+          const res = await fetch('http://localhost:8000/agent', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ question: questionForAgent }),
+          });
+
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.detail || `HTTP ${res.status}`);
+          }
+
+          data = await res.json();
+        }
+
+        // 대화 내역 및 UI 업데이트
+        if (userVisibleQuestion) {
+          conversation.push({ role: 'user', text: userVisibleQuestion });
+          appendMessage('user', userVisibleQuestion, file ? (data.filename ? `파일: ${data.filename}` : '') : '');
+        }
+
+        const answerText = data.answer || '(빈 응답)';
+        const usedSearchText = data.used_search
+          ? '검색을 활용한 답변으로 추정됩니다.'
+          : '검색 사용 흔적이 없는 답변입니다.';
+
+        conversation.push({ role: 'assistant', text: answerText });
+        appendMessage('assistant', answerText, usedSearchText);
+
+        // 입력창 초기화 (파일은 유지)
+        questionEl.value = '';
+      } catch (err) {
+        errorEl.style.display = 'block';
+        errorEl.textContent = `오류: ${err.message}`;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '에이전트에게 질문하기';
+      }
+    });
+  </script>
+</body>
+</html>
+
+
