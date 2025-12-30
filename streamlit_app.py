@@ -1,7 +1,7 @@
 import streamlit as st
 import requests
 
-BACKEND_URL = "http://localhost:8000"
+BACKEND_URL = "https://ai-agent-backend-wvfl.onrender.com"
 
 st.set_page_config(
     page_title="AI Agent",
