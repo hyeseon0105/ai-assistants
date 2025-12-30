@@ -583,6 +583,13 @@
 
         addMessage('assistant', answer, meta);
         conversation.push({ role: 'assistant', text: answer });
+        
+        // 파일 전송 후 자동 삭제
+        if (currentFile) {
+          currentFile = null;
+          fileInput.value = '';
+          fileInfo.style.display = 'none';
+        }
       } catch (err) {
         hideLoading();
         showError(err.message);
