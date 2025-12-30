@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI 에이전트 - 문서 번역 및 분석</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans KR", sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 1000px;
+      background: white;
+      border-radius: 24px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      height: 90vh;
+      max-height: 900px;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 24px 28px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .header h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+    }
+
+    .header .subtitle {
+      font-size: 0.85rem;
+      opacity: 0.9;
+      margin-top: 4px;
+    }
+
+    .chat-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+      background: #f8f9fa;
+    }
+
+    .message {
+      margin-bottom: 20px;
+      display: flex;
+      gap: 12px;
+      animation: fadeIn 0.3s ease-in;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .message.user {
+      justify-content: flex-end;
+    }
+
+    .message-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 0.9rem;
+      flex-shrink: 0;
+    }
+
+    .message.user .message-avatar {
+      background: #667eea;
+      color: white;
+    }
+
+    .message.assistant .message-avatar {
+      background: #e9ecef;
+      color: #495057;
+    }
+
+    .message-content {
+      max-width: 70%;
+      padding: 12px 16px;
+      border-radius: 18px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+
+    .message.user .message-content {
+      background: #667eea;
+      color: white;
+      border-bottom-right-radius: 4px;
+    }
+
+    .message.assistant .message-content {
+      background: white;
+      color: #212529;
+      border: 1px solid #e9ecef;
+      border-bottom-left-radius: 4px;
+    }
+
+    .message-meta {
+      font-size: 0.75rem;
+      color: #6c757d;
+      margin-top: 6px;
+      padding-left: 48px;
+    }
+
+    .input-area {
+      padding: 20px 24px;
+      background: white;
+      border-top: 1px solid #e9ecef;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 12px;
+      align-items: flex-end;
+    }
+
+    .file-info {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      background: #f8f9fa;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      color: #495057;
+      margin-bottom: 8px;
+    }
+
+    .file-info .file-name {
+      font-weight: 500;
+    }
+
+    .file-info .remove-btn {
+      background: none;
+      border: none;
+      color: #dc3545;
+      cursor: pointer;
+      padding: 0;
+      font-size: 1rem;
+      line-height: 1;
+    }
+
+    .input-wrapper {
+      flex: 1;
+      position: relative;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 50px;
+      max-height: 150px;
+      padding: 12px 16px;
+      padding-right: 50px;
+      border: 2px solid #e9ecef;
+      border-radius: 24px;
+      font-family: inherit;
+      font-size: 0.95rem;
+      resize: none;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    textarea:focus {
+      border-color: #667eea;
+    }
+
+    .input-actions {
+      position: absolute;
+      right: 8px;
+      bottom: 8px;
+      display: flex;
+      gap: 8px;
+    }
+
+    .icon-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: none;
+      background: #f8f9fa;
+      color: #495057;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+
+    .icon-btn:hover {
+      background: #e9ecef;
+    }
+
+    .icon-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .send-btn {
+      background: #667eea;
+      color: white;
+    }
+
+    .send-btn:hover:not(:disabled) {
+      background: #5568d3;
+    }
+
+    .send-btn:disabled {
+      background: #adb5bd;
+    }
+
+    .error-message {
+      background: #fff3cd;
+      color: #856404;
+      padding: 12px 16px;
+      border-radius: 8px;
+      margin-bottom: 12px;
+      font-size: 0.9rem;
+    }
+
+    .loading {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #6c757d;
+      font-size: 0.85rem;
+    }
+
+    .loading-dots {
+      display: flex;
+      gap: 4px;
+    }
+
+    .loading-dots span {
+      width: 6px;
+      height: 6px;
+      background: #667eea;
+      border-radius: 50%;
+      animation: bounce 1.4s infinite ease-in-out;
+    }
+
+    .loading-dots span:nth-child(1) {
+      animation-delay: -0.32s;
+    }
+
+    .loading-dots span:nth-child(2) {
+      animation-delay: -0.16s;
+    }
+
+    @keyframes bounce {
+      0%, 80%, 100% {
+        transform: scale(0);
+      }
+      40% {
+        transform: scale(1);
+      }
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #6c757d;
+    }
+
+    .empty-state svg {
+      width: 80px;
+      height: 80px;
+      margin-bottom: 16px;
+      opacity: 0.5;
+    }
+
+    .empty-state h3 {
+      font-size: 1.1rem;
+      margin-bottom: 8px;
+      color: #495057;
+    }
+
+    .empty-state p {
+      font-size: 0.9rem;
+    }
+
+    input[type="file"] {
+      display: none;
+    }
+
+    @media (max-width: 768px) {
+      .container {
+        height: 100vh;
+        max-height: none;
+        border-radius: 0;
+      }
+
+      .message-content {
+        max-width: 85%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div>
+        <h1>AI 에이전트</h1>
+        <div class="subtitle">문서 번역 · 분석 · 질문응답</div>
+      </div>
+    </div>
+
+    <div class="chat-container">
+      <div class="chat-messages" id="chatMessages">
+        <div class="empty-state">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+          </svg>
+          <h3>대화를 시작해보세요</h3>
+          <p>질문을 입력하거나 파일을 업로드하여 문서를 번역·분석할 수 있습니다</p>
+        </div>
+      </div>
+
+      <div class="input-area">
+        <div id="fileInfo" style="display: none;"></div>
+        <div class="input-row">
+          <div class="input-wrapper">
+            <textarea
+              id="questionInput"
+              placeholder="질문을 입력하세요... (예: 이 문서를 번역해줘, 이 계약서에서 위험한 조항만 뽑아줘)"
+              rows="1"
+            ></textarea>
+            <div class="input-actions">
+              <button class="icon-btn" id="fileBtn" title="파일 업로드">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="17 8 12 3 7 8"></polyline>
+                  <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+              </button>
+              <button class="icon-btn send-btn" id="sendBtn" title="전송 (Enter)">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="22" y1="2" x2="11" y2="13"></line>
+                  <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <input type="file" id="fileInput" accept=".pdf,.txt" />
+
+  <script>
+    const chatMessages = document.getElementById('chatMessages');
+    const questionInput = document.getElementById('questionInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const fileBtn = document.getElementById('fileBtn');
+    const fileInput = document.getElementById('fileInput');
+    const fileInfo = document.getElementById('fileInfo');
+
+    let currentFile = null;
+    const conversation = [];
+
+    // 파일 선택
+    fileBtn.addEventListener('click', () => {
+      fileInput.click();
+    });
+
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        currentFile = file;
+        fileInfo.innerHTML = `
+          <div class="file-info">
+            <span class="file-name">📄 ${file.name}</span>
+            <button class="remove-btn" onclick="removeFile()">×</button>
+          </div>
+        `;
+        fileInfo.style.display = 'block';
+      }
+    });
+
+    window.removeFile = () => {
+      currentFile = null;
+      fileInput.value = '';
+      fileInfo.style.display = 'none';
+    };
+
+    // 텍스트 영역 자동 높이 조절
+    questionInput.addEventListener('input', () => {
+      questionInput.style.height = 'auto';
+      questionInput.style.height = Math.min(questionInput.scrollHeight, 150) + 'px';
+    });
+
+    // Enter 키 처리
+    questionInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendBtn.click();
+      }
+    });
+
+    // 메시지 추가
+    function addMessage(role, text, meta = '') {
+      const emptyState = chatMessages.querySelector('.empty-state');
+      if (emptyState) {
+        emptyState.remove();
+      }
+
+      const messageDiv = document.createElement('div');
+      messageDiv.className = `message ${role}`;
+
+      const avatar = document.createElement('div');
+      avatar.className = 'message-avatar';
+      avatar.textContent = role === 'user' ? '나' : 'AI';
+
+      const content = document.createElement('div');
+      content.className = 'message-content';
+      content.textContent = text;
+
+      messageDiv.appendChild(avatar);
+      messageDiv.appendChild(content);
+
+      if (meta) {
+        const metaDiv = document.createElement('div');
+        metaDiv.className = 'message-meta';
+        metaDiv.textContent = meta;
+        messageDiv.appendChild(metaDiv);
+      }
+
+      chatMessages.appendChild(messageDiv);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    // 로딩 표시
+    function showLoading() {
+      const loadingDiv = document.createElement('div');
+      loadingDiv.className = 'message assistant';
+      loadingDiv.id = 'loadingMessage';
+      loadingDiv.innerHTML = `
+        <div class="message-avatar">AI</div>
+        <div class="message-content">
+          <div class="loading">
+            <span>답변을 생성하고 있습니다</span>
+            <div class="loading-dots">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+          </div>
+        </div>
+      `;
+      chatMessages.appendChild(loadingDiv);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    function hideLoading() {
+      const loading = document.getElementById('loadingMessage');
+      if (loading) {
+        loading.remove();
+      }
+    }
+
+    // 에러 표시
+    function showError(message) {
+      const errorDiv = document.createElement('div');
+      errorDiv.className = 'error-message';
+      errorDiv.textContent = `오류: ${message}`;
+      chatMessages.appendChild(errorDiv);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+      setTimeout(() => errorDiv.remove(), 5000);
+    }
+
+    // 히스토리 빌드
+    function buildHistory() {
+      if (!conversation.length) return '';
+      return conversation
+        .map(m => `${m.role === 'user' ? '사용자' : 'AI'}: ${m.text}`)
+        .join('\n');
+    }
+
+    // 전송
+    sendBtn.addEventListener('click', async () => {
+      const question = questionInput.value.trim();
+      if (!question && !currentFile) {
+        showError('질문을 입력하거나 파일을 업로드해 주세요.');
+        return;
+      }
+
+      const userQuestion = question || (currentFile ? '이 파일을 요약해줘' : '');
+      addMessage('user', userQuestion, currentFile ? `파일: ${currentFile.name}` : '');
+      conversation.push({ role: 'user', text: userQuestion });
+
+      questionInput.value = '';
+      questionInput.style.height = 'auto';
+      sendBtn.disabled = true;
+      fileBtn.disabled = true;
+      showLoading();
+
+      try {
+        const history = buildHistory();
+        let data;
+
+        if (currentFile) {
+          const formData = new FormData();
+          formData.append('file', currentFile);
+          const questionForFile = history
+            ? `${history}\n\n새 질문: ${userQuestion}`
+            : userQuestion;
+          formData.append('question', questionForFile);
+
+          const res = await fetch('/agent/file', {
+            method: 'POST',
+            body: formData,
+          });
+
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.detail || `HTTP ${res.status}`);
+          }
+
+          data = await res.json();
+        } else {
+          const questionForAgent = history
+            ? `${history}\n\n새 질문: ${question}`
+            : question;
+
+          const res = await fetch('/agent', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ question: questionForAgent }),
+          });
+
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.detail || `HTTP ${res.status}`);
+          }
+
+          data = await res.json();
+        }
+
+        hideLoading();
+        const answer = data.answer || '(빈 응답)';
+        const meta = data.used_search
+          ? '검색을 활용한 답변'
+          : '일반 답변';
+
+        addMessage('assistant', answer, meta);
+        conversation.push({ role: 'assistant', text: answer });
+      } catch (err) {
+        hideLoading();
+        showError(err.message);
+      } finally {
+        sendBtn.disabled = false;
+        fileBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
+

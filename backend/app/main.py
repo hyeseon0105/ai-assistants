@@ -1,5 +1,7 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 
 from .agent.agent import run_agent
 from .agent.schemas import AgentRequest, AgentResponse
@@ -13,6 +15,11 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url=None,
 )
+
+# 정적 파일 서빙 (UI)
+static_dir = Path(__file__).parent.parent / "static"
+if static_dir.exists():
+    app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
 # CORS 설정: 로컬에서 열어 둔 test.html 등이 백엔드에 요청할 수 있도록 허용
 app.add_middleware(
@@ -39,6 +46,16 @@ async def call_agent(request: AgentRequest) -> AgentResponse:
         raise HTTPException(status_code=500, detail=f"에이전트 실행 중 오류가 발생했습니다: {e}")
 
     return AgentResponse(answer=answer, used_search=used_search, raw_model=raw)
+
+
+@app.get("/")
+async def root():
+    """루트 경로에서 index.html로 리다이렉트"""
+    from fastapi.responses import FileResponse
+    index_path = static_dir / "index.html"
+    if index_path.exists():
+        return FileResponse(str(index_path))
+    return {"message": "AI 에이전트 API", "docs": "/docs"}
 
 
 @app.get("/health")

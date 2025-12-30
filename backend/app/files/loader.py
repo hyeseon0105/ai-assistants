@@ -76,3 +76,5 @@ async def extract_text_from_upload(file: UploadFile) -> str:
     return text
 
 
+
+
