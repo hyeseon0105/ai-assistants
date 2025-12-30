@@ -51,11 +51,15 @@ async def call_agent(request: AgentRequest) -> AgentResponse:
 @app.get("/")
 async def root():
     """루트 경로에서 index.html로 리다이렉트"""
-    from fastapi.responses import FileResponse
+    from fastapi.responses import FileResponse, HTMLResponse
     index_path = static_dir / "index.html"
     if index_path.exists():
-        return FileResponse(str(index_path))
-    return {"message": "AI 에이전트 API", "docs": "/docs"}
+        return FileResponse(
+            str(index_path),
+            media_type="text/html",
+            headers={"Cache-Control": "no-cache"}
+        )
+    return HTMLResponse(content="<h1>AI 에이전트 API</h1><p>index.html을 찾을 수 없습니다.</p><p><a href='/docs'>API 문서</a></p>")
 
 
 @app.get("/health")
