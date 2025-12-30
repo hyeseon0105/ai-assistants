@@ -59,12 +59,32 @@ uploaded_file = st.file_uploader(
 )
 
 # 파일이 업로드되었고, 현재 파일이 없을 때만 저장
-if uploaded_file and not st.session_state.current_file:
-    st.session_state.current_file = {
-        "name": uploaded_file.name,
-        "type": uploaded_file.type,
-        "bytes": uploaded_file.getvalue(),
-    }
+if uploaded_file:
+    # 파일 크기 제한 (200MB)
+    MAX_FILE_SIZE = 200 * 1024 * 1024  # 200MB
+    
+    # 이전 파일이 있으면 먼저 정리 (메모리 해제)
+    if st.session_state.current_file:
+        st.session_state.current_file = None
+    
+    # 새 파일 저장 및 크기 체크
+    try:
+        file_bytes = uploaded_file.getvalue()
+        file_size = len(file_bytes)
+        
+        if file_size > MAX_FILE_SIZE:
+            st.error(f"❌ 파일 크기가 너무 큽니다. 최대 200MB까지 업로드 가능합니다. (현재: {file_size / 1024 / 1024:.1f}MB)")
+            del file_bytes  # 메모리 정리
+            st.session_state.current_file = None
+        else:
+            st.session_state.current_file = {
+                "name": uploaded_file.name,
+                "type": uploaded_file.type,
+                "bytes": file_bytes,
+            }
+    except Exception as e:
+        st.error(f"❌ 파일 읽기 오류: {str(e)}")
+        st.session_state.current_file = None
 
 # 파일 선택 상태 표시 + 제거 버튼
 if st.session_state.current_file:
@@ -127,18 +147,27 @@ if st.session_state.pending_question:
                         if history else question
                     )
 
+                    # 파일 데이터 준비
+                    file_data = st.session_state.current_file
+                    files = {
+                        "file": (
+                            file_data["name"],
+                            file_data["bytes"],
+                            file_data["type"]
+                        )
+                    }
+                    
+                    # 타임아웃을 더 길게 설정 (큰 파일용)
+                    # 연결 타임아웃 60초, 읽기 타임아웃 600초
                     response = requests.post(
                         f"{BACKEND_URL}/agent/file",
                         data={"question": payload_question},
-                        files={
-                            "file": (
-                                st.session_state.current_file["name"],
-                                st.session_state.current_file["bytes"],
-                                st.session_state.current_file["type"]
-                            )
-                        },
-                        timeout=300
+                        files=files,
+                        timeout=(60, 600)  # (connect timeout, read timeout)
                     )
+                    
+                    # 파일 데이터 참조 제거 (메모리 정리)
+                    del files
                 else:
                     payload_question = (
                         f"{history}\n\n새 질문: {question}"
@@ -151,7 +180,17 @@ if st.session_state.pending_question:
                         timeout=300
                     )
 
-                response.raise_for_status()
+                # 응답 상태 확인
+                if response.status_code != 200:
+                    error_detail = ""
+                    try:
+                        error_data = response.json()
+                        error_detail = error_data.get("detail", response.text)
+                    except:
+                        error_detail = response.text[:500]  # 너무 긴 경우 잘라냄
+                    st.error(f"❌ 서버 오류 ({response.status_code}): {error_detail}")
+                    st.stop()
+                
                 result = response.json()
 
                 answer = result.get("answer", "(빈 응답)")
@@ -179,5 +218,22 @@ if st.session_state.pending_question:
                     st.session_state.file_uploader_key += 1  # 위젯 리셋
                     st.rerun()
 
+            except requests.exceptions.ConnectionError as e:
+                error_msg = str(e)
+                if "ConnectionResetError" in error_msg or "Connection aborted" in error_msg:
+                    st.error(f"❌ 연결이 끊겼습니다. 파일이 너무 크거나 서버 문제일 수 있습니다. 다시 시도해주세요.")
+                    st.info("💡 팁: 파일 크기를 줄이거나 잠시 후 다시 시도해주세요.")
+                else:
+                    st.error(f"❌ 연결 오류: {error_msg}")
+            except requests.exceptions.Timeout as e:
+                st.error(f"❌ 요청 시간 초과: 파일이 너무 크거나 서버 응답이 느립니다.")
+                st.info("💡 팁: 더 작은 파일로 시도하거나 잠시 후 다시 시도해주세요.")
             except Exception as e:
-                st.error(f"❌ 오류 발생: {e}")
+                error_msg = str(e)
+                # HTTP 에러인 경우 더 자세한 정보 표시
+                if "400" in error_msg or "Client Error" in error_msg:
+                    st.error(f"❌ 요청 오류: {error_msg}")
+                elif "500" in error_msg or "Server Error" in error_msg:
+                    st.error(f"❌ 서버 오류: {error_msg}")
+                else:
+                    st.error(f"❌ 오류 발생: {error_msg}")
