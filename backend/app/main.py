@@ -41,11 +41,11 @@ async def call_agent(request: AgentRequest) -> AgentResponse:
         raise HTTPException(status_code=400, detail="question 필드는 비어 있을 수 없습니다.")
 
     try:
-        answer, used_search, raw = run_agent(question)
+        answer, used_search, raw, sources = run_agent(question)
     except Exception as e:  # 최소한의 에러 핸들링
         raise HTTPException(status_code=500, detail=f"에이전트 실행 중 오류가 발생했습니다: {e}")
 
-    return AgentResponse(answer=answer, used_search=used_search, raw_model=raw)
+    return AgentResponse(answer=answer, used_search=used_search, raw_model=raw, sources=sources)
 
 
 @app.get("/")
@@ -94,7 +94,7 @@ async def call_agent_with_file(
     )
 
     try:
-        answer, used_search, _raw = run_agent(combined_question)
+        answer, used_search, _raw, sources = run_agent(combined_question)
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -105,5 +105,6 @@ async def call_agent_with_file(
         "filename": file.filename,
         "answer": answer,
         "used_search": used_search,
+        "sources": sources,
     }
 

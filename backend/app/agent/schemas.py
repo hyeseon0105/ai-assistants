@@ -16,5 +16,9 @@ class AgentResponse(BaseModel):
         default=None,
         description="디버깅용 원시 모델 응답(프로덕션에서는 보통 제외/마스킹)",
     )
+    sources: Optional[List[Dict]] = Field(
+        default=None,
+        description="연구 모드에서 사용된 검색 결과 출처 목록",
+    )
 
 

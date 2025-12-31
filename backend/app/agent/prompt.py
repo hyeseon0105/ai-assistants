@@ -8,6 +8,7 @@
 from ..prompts.base import BASE_PROMPT
 from ..prompts.translate import TRANSLATE_PROMPT
 from ..prompts.analyze import ANALYZE_PROMPT
+from ..prompts.research import RESEARCH_PROMPT
 
 
 # 기본 모드: 일반 질문, 요약/분석 중심
@@ -23,6 +24,14 @@ TRANSLATE_SYSTEM_PROMPT = "\n\n".join(
     [
         BASE_PROMPT,
         TRANSLATE_PROMPT,
+    ]
+).strip()
+
+# 연구 모드: Deep Research를 위한 심층 연구 프롬프트
+RESEARCH_SYSTEM_PROMPT = "\n\n".join(
+    [
+        BASE_PROMPT,
+        RESEARCH_PROMPT,
     ]
 ).strip()
 

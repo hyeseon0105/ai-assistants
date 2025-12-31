@@ -13,17 +13,20 @@ class Settings:
 
     OPENAI_API_KEY: str
     OPENAI_MODEL: str
+    TAVILY_API_KEY: str | None
     _client: OpenAI | None = None
 
     def __init__(self) -> None:
         api_key = os.getenv("OPENAI_API_KEY")
-        model = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
+        model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+        tavily_key = os.getenv("TAVILY_API_KEY")
 
         if not api_key:
             raise ValueError("OPENAI_API_KEY가 .env에 설정되어 있지 않습니다.")
 
         self.OPENAI_API_KEY = api_key
         self.OPENAI_MODEL = model
+        self.TAVILY_API_KEY = tavily_key  # 선택적: 없어도 동작 (모델 내장 검색 사용)
 
     @property
     def client(self) -> OpenAI:
