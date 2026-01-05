@@ -63,88 +63,110 @@ def _is_research_request(question: str) -> bool:
 
 def detect_mode(state: AgentState) -> AgentState:
     """번역/연구/일반 모드 판단"""
-    question = state["question"]
-    is_translate = _is_translation_request(question)
-    is_research = _is_research_request(question)
-    
-    new_state = state.copy()
-    if is_translate:
-        new_state["mode"] = "translate"
-        new_state["system_prompt"] = TRANSLATE_SYSTEM_PROMPT
-    elif is_research:
-        new_state["mode"] = "research"
-        new_state["system_prompt"] = RESEARCH_SYSTEM_PROMPT
-        new_state["max_iterations"] = 2  # 최대 2회 검색 반복 (성능 최적화)
-        new_state["research_iterations"] = 0
-        new_state["search_results"] = []
-    else:
+    try:
+        question = state["question"]
+        is_translate = _is_translation_request(question)
+        is_research = _is_research_request(question)
+        
+        # TypedDict는 copy()가 없으므로 dict()로 변환
+        new_state = dict(state)
+        if is_translate:
+            new_state["mode"] = "translate"
+            new_state["system_prompt"] = TRANSLATE_SYSTEM_PROMPT
+        elif is_research:
+            new_state["mode"] = "research"
+            new_state["system_prompt"] = RESEARCH_SYSTEM_PROMPT
+            new_state["max_iterations"] = 2  # 최대 2회 검색 반복 (성능 최적화)
+            new_state["research_iterations"] = 0
+            new_state["search_results"] = []
+        else:
+            new_state["mode"] = "general"
+            new_state["system_prompt"] = DEFAULT_SYSTEM_PROMPT
+        
+        return new_state
+    except Exception as e:
+        # 에러 발생 시 기본 상태 반환
+        new_state = dict(state)
         new_state["mode"] = "general"
         new_state["system_prompt"] = DEFAULT_SYSTEM_PROMPT
-    
-    return new_state
+        return new_state
 
 
 def perform_search(state: AgentState) -> AgentState:
     """웹 검색 수행 (연구 모드에서만 사용)"""
-    question = state["question"]
-    iterations = state.get("research_iterations", 0)
-    max_iter = state.get("max_iterations", 3)
-    
-    new_state = state.copy()
-    
-    # 최대 반복 횟수 체크
-    if iterations >= max_iter:
+    try:
+        question = state["question"]
+        iterations = state.get("research_iterations", 0)
+        max_iter = state.get("max_iterations", 3)
+        
+        # TypedDict는 copy()가 없으므로 dict()로 변환
+        new_state = dict(state)
+        
+        # 최대 반복 횟수 체크
+        if iterations >= max_iter:
+            return new_state
+        
+        # 검색 수행
+        search_query = question if iterations == 0 else f"{question} 상세 정보"
+        results = web_search(search_query, max_results=5)
+        
+        # 검색 결과 저장
+        existing_results = new_state.get("search_results", [])
+        for result in results:
+            existing_results.append(result.to_dict())
+        new_state["search_results"] = existing_results
+        new_state["research_iterations"] = iterations + 1
+        new_state["used_search"] = True
+        
         return new_state
-    
-    # 검색 수행
-    search_query = question if iterations == 0 else f"{question} 상세 정보"
-    results = web_search(search_query, max_results=5)
-    
-    # 검색 결과 저장
-    existing_results = new_state.get("search_results", [])
-    for result in results:
-        existing_results.append(result.to_dict())
-    new_state["search_results"] = existing_results
-    new_state["research_iterations"] = iterations + 1
-    new_state["used_search"] = True
-    
-    return new_state
+    except Exception as e:
+        # 검색 실패 시 기존 상태 유지
+        return dict(state)
 
 
 def call_llm(state: AgentState) -> AgentState:
     """OpenAI LLM 호출"""
-    question = state["question"]
-    system_prompt = state["system_prompt"]
-    mode = state.get("mode", "general")
-    
-    # 연구 모드인 경우 검색 결과를 포함
-    messages = [{"role": "system", "content": system_prompt}]
-    
-    if mode == "research" and state.get("search_results"):
-        # 검색 결과를 컨텍스트에 추가
-        search_context = format_search_results([
-            SearchResult(**r) for r in state["search_results"]
-        ])
-        user_content = f"{search_context}\n\n질문: {question}"
-    else:
-        user_content = question
-    
-    messages.append({"role": "user", "content": user_content})
-    
-    client = settings.client
-    response = client.chat.completions.create(
-        model=settings.OPENAI_MODEL,
-        messages=messages,
-    )
+    try:
+        question = state["question"]
+        system_prompt = state["system_prompt"]
+        mode = state.get("mode", "general")
+        
+        # 연구 모드인 경우 검색 결과를 포함
+        messages = [{"role": "system", "content": system_prompt}]
+        
+        if mode == "research" and state.get("search_results"):
+            # 검색 결과를 컨텍스트에 추가
+            search_context = format_search_results([
+                SearchResult(**r) for r in state["search_results"]
+            ])
+            user_content = f"{search_context}\n\n질문: {question}"
+        else:
+            user_content = question
+        
+        messages.append({"role": "user", "content": user_content})
+        
+        client = settings.client
+        response = client.chat.completions.create(
+            model=settings.OPENAI_MODEL,
+            messages=messages,
+        )
 
-    answer = response.choices[0].message.content or ""
-    
-    new_state = state.copy()
-    new_state["answer"] = answer
-    new_state["raw_response"] = response.model_dump()
-    new_state["messages"] = messages
+        answer = response.choices[0].message.content or ""
+        
+        # TypedDict는 copy()가 없으므로 dict()로 변환
+        new_state = dict(state)
+        new_state["answer"] = answer
+        new_state["raw_response"] = response.model_dump()
+        new_state["messages"] = messages
 
-    return new_state
+        return new_state
+    except Exception as e:
+        # LLM 호출 실패 시 에러 메시지 반환
+        new_state = dict(state)
+        new_state["answer"] = f"오류가 발생했습니다: {str(e)}"
+        new_state["raw_response"] = {}
+        new_state["messages"] = []
+        return new_state
 
 
 def should_continue_research(state: AgentState) -> str:
@@ -198,65 +220,73 @@ def should_search_first(state: AgentState) -> str:
 
 def detect_search_usage(state: AgentState) -> AgentState:
     """답변 내용 기반으로 웹 검색 사용 여부 추정"""
-    answer = state["answer"]
-    search_keywords = [
-        "검색해 본 결과",
-        "검색한 결과",
-        "검색 결과",
-        "공식 사이트",
-        "공식 웹사이트",
-        "공식 홈페이지",
-        "확인 결과",
-        "조사 결과",
-    ]
-    new_state = state.copy()
-    # 실제 검색을 수행했거나, 답변에 검색 키워드가 포함된 경우
-    new_state["used_search"] = state.get("used_search", False) or any(
-        keyword in answer for keyword in search_keywords
-    )
-    return new_state
+    try:
+        answer = state.get("answer", "")
+        search_keywords = [
+            "검색해 본 결과",
+            "검색한 결과",
+            "검색 결과",
+            "공식 사이트",
+            "공식 웹사이트",
+            "공식 홈페이지",
+            "확인 결과",
+            "조사 결과",
+        ]
+        # TypedDict는 copy()가 없으므로 dict()로 변환
+        new_state = dict(state)
+        # 실제 검색을 수행했거나, 답변에 검색 키워드가 포함된 경우
+        new_state["used_search"] = state.get("used_search", False) or any(
+            keyword in answer for keyword in search_keywords
+        )
+        return new_state
+    except Exception as e:
+        # 에러 발생 시 기존 상태 유지
+        return dict(state)
 
 
-def create_agent_graph() -> StateGraph:
+def create_agent_graph():
     """에이전트 워크플로우 그래프 생성"""
-    workflow = StateGraph(AgentState)
+    try:
+        workflow = StateGraph(AgentState)
 
-    # 노드 추가
-    workflow.add_node("detect_mode", detect_mode)
-    workflow.add_node("perform_search", perform_search)
-    workflow.add_node("call_llm", call_llm)
-    workflow.add_node("detect_search", detect_search_usage)
+        # 노드 추가
+        workflow.add_node("detect_mode", detect_mode)
+        workflow.add_node("perform_search", perform_search)
+        workflow.add_node("call_llm", call_llm)
+        workflow.add_node("detect_search", detect_search_usage)
 
-    # 엣지 정의
-    workflow.set_entry_point("detect_mode")
-    
-    # 모드 감지 후 연구 모드면 검색부터, 아니면 바로 LLM 호출
-    workflow.add_conditional_edges(
-        "detect_mode",
-        should_search_first,
-        {
-            "search": "perform_search",
-            "llm": "call_llm",
-        }
-    )
-    
-    # 검색 후 LLM 호출
-    workflow.add_edge("perform_search", "call_llm")
-    
-    # LLM 호출 후 연구 모드면 추가 검색 여부 판단
-    workflow.add_conditional_edges(
-        "call_llm",
-        should_continue_research,
-        {
-            "search": "perform_search",
-            "end": "detect_search",
-        }
-    )
-    
-    # 최종 종료
-    workflow.add_edge("detect_search", END)
+        # 엣지 정의
+        workflow.set_entry_point("detect_mode")
+        
+        # 모드 감지 후 연구 모드면 검색부터, 아니면 바로 LLM 호출
+        workflow.add_conditional_edges(
+            "detect_mode",
+            should_search_first,
+            {
+                "search": "perform_search",
+                "llm": "call_llm",
+            }
+        )
+        
+        # 검색 후 LLM 호출
+        workflow.add_edge("perform_search", "call_llm")
+        
+        # LLM 호출 후 연구 모드면 추가 검색 여부 판단
+        workflow.add_conditional_edges(
+            "call_llm",
+            should_continue_research,
+            {
+                "search": "perform_search",
+                "end": "detect_search",
+            }
+        )
+        
+        # 최종 종료
+        workflow.add_edge("detect_search", END)
 
-    return workflow.compile()
+        return workflow.compile()
+    except Exception as e:
+        raise RuntimeError(f"에이전트 그래프 생성 중 오류가 발생했습니다: {str(e)}") from e
 
 
 # 그래프 인스턴스 생성 (모듈 레벨에서 한 번만)
@@ -281,33 +311,48 @@ def run_agent(question: str) -> Tuple[str, bool, dict, Optional[List[Dict]]]:
 
     반환: (answer, used_search, raw_model_dict, sources)
     """
-    graph = get_agent_graph()
+    try:
+        graph = get_agent_graph()
 
-    # 초기 상태
-    initial_state: AgentState = {
-        "question": question,
-        "mode": "general",  # detect_mode에서 설정됨
-        "system_prompt": "",
-        "messages": [],
-        "answer": "",
-        "used_search": False,
-        "raw_response": {},
-        "search_results": [],
-        "research_iterations": 0,
-        "max_iterations": 2,  # 기본값도 2회로 설정
-    }
+        # 초기 상태
+        initial_state: AgentState = {
+            "question": question.strip(),
+            "mode": "general",  # detect_mode에서 설정됨
+            "system_prompt": "",
+            "messages": [],
+            "answer": "",
+            "used_search": False,
+            "raw_response": {},
+            "search_results": [],
+            "research_iterations": 0,
+            "max_iterations": 2,  # 기본값도 2회로 설정
+        }
 
-    # 그래프 실행
-    final_state = graph.invoke(initial_state)
+        # 그래프 실행
+        final_state = graph.invoke(initial_state)
 
-    # 소스 정보 추출 (연구 모드인 경우)
-    sources = None
-    if final_state.get("search_results"):
-        sources = final_state["search_results"]
+        # 소스 정보 추출 (연구 모드인 경우)
+        sources = None
+        if final_state.get("search_results"):
+            sources = final_state["search_results"]
 
-    return (
-        final_state["answer"],
-        final_state["used_search"],
-        final_state["raw_response"],
-        sources,
-    )
+        # 안전하게 값 추출
+        answer = final_state.get("answer", "답변을 생성할 수 없습니다.")
+        used_search = final_state.get("used_search", False)
+        raw_response = final_state.get("raw_response", {})
+
+        return (
+            answer,
+            used_search,
+            raw_response,
+            sources,
+        )
+    except Exception as e:
+        # 에러 발생 시 기본값 반환
+        error_msg = f"에이전트 실행 중 오류가 발생했습니다: {str(e)}"
+        return (
+            error_msg,
+            False,
+            {},
+            None,
+        )

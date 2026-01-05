@@ -102,7 +102,7 @@ ai-assistants/
 
 ### 사전 요구사항
 
-- Python 3.10 이상
+- **Python 3.10** (필수, `runtime.txt`에 명시)
 - OpenAI API Key
 
 ### 1. 저장소 클론
